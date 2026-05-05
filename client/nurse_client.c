@@ -141,14 +141,26 @@ static void term_raw(void) {
  * Returns: 1 → resume streaming (possibly different patient)
  *          0 → quit requested
  * ─────────────────────────────────────────────────────────────*/
-static int show_pause_menu(int fd,
-                           int pids[], char pnames[][64], int pcount,
-                           int* patient_id)
+static int show_pause_menu(int fd, int* patient_id)
 {
-    (void)fd; /* reserved for future live patient refresh */
     term_canonical();
+    char buf[BUFFER_SIZE];
+    int pids[MAX_PATIENTS];
+    char pnames[MAX_PATIENTS][64];
 
     while (1) {
+        int pcount = 0;
+        send_line(fd, "LIST_PATIENTS");
+        recv_line(fd, buf, sizeof(buf));
+        sscanf(buf, "PATIENTS %d", &pcount);
+        int pi = 0;
+        while (recv_line(fd, buf, sizeof(buf)) > 0) {
+            if (strcmp(buf, ".") == 0) break;
+            sscanf(buf, "%d|%63[^\n]", &pids[pi], pnames[pi]);
+            pi++;
+        }
+        pcount = pi;
+
         printf("\n");
         print_separator();
         printf(BOLD BRIGHT_YELLOW "  ⏸  STREAMING PAUSED\n" RESET);
@@ -161,10 +173,10 @@ static int show_pause_menu(int fd,
         printf("  [1] Resume streaming\n");
         printf("  [2] Switch patient\n");
         printf("  [3] Quit\n");
-        printf("\nChoice: "); fflush(stdout);
-
-        int ch = 0;
-        if (scanf("%d", &ch) != 1) ch = 3;
+        printf("\nChoice: ");        int ch = 0;
+        int res = scanf("%d", &ch);
+        if (res == EOF) return 0; /* Quit */
+        if (res != 1) ch = 3;
 
         switch (ch) {
             case 1:
@@ -173,8 +185,9 @@ static int show_pause_menu(int fd,
                 return 1;
 
             case 2: {
-                if (pcount == 1) {
-                    printf(YELLOW "Only one patient assigned — nothing to switch.\n" RESET);
+                if (pcount <= 1) {
+                    if (pcount == 1) printf(YELLOW "Only one patient assigned — nothing to switch.\n" RESET);
+                    else printf(YELLOW "No patients currently assigned to you.\n" RESET);
                     break;
                 }
                 printf("\nAssigned patients:\n");
@@ -189,6 +202,7 @@ static int show_pause_menu(int fd,
                     printf(GREEN "Switched to patient #%d — %s\n" RESET,
                            *patient_id, pnames[sel-1]);
                 } else {
+                    int c; while ((c = getchar()) != '\n' && c != EOF);
                     printf(YELLOW "Invalid choice.\n" RESET);
                 }
                 break;
@@ -206,8 +220,9 @@ static int show_pause_menu(int fd,
 }
 
 /* ════════════════════════════════════════════════════════════ */
-int main(int argc, char* argv[]) {
-    (void)argc; (void)argv;
+int nurse_main(void) {
+    running = 1;
+    paused  = 0;
     srand((unsigned)time(NULL) ^ (unsigned)getpid());
     signal(SIGINT, on_sigint);
 
@@ -220,29 +235,51 @@ int main(int argc, char* argv[]) {
     srv.sin_port   = htons(SERVER_PORT);
     inet_pton(AF_INET, SERVER_HOST, &srv.sin_addr);
 
-    printf(YELLOW "Connecting to %s:%d …\n" RESET, SERVER_HOST, SERVER_PORT);
-    if (connect(fd, (struct sockaddr*)&srv, sizeof(srv)) < 0)
-        { perror("connect"); return 1; }
-
+    /* ── Connect + authenticate (up to 3 attempts) ───────────── */
     char buf[BUFFER_SIZE];
-    recv_line(fd, buf, sizeof(buf));
-    printf(DIM "%s\n" RESET, buf);
-
-    /* ── Authenticate ─────────────────────────────────────────── */
+    int user_id = 0;
+    int authed  = 0;
     char username[32], password[64];
-    printf("Username: "); fflush(stdout); scanf("%31s", username);
-    printf("Password: "); fflush(stdout); scanf("%63s", password);
 
-    send_line(fd, "AUTH %s %s", username, password);
-    recv_line(fd, buf, sizeof(buf));
+    for (int attempt = 1; attempt <= 3; attempt++) {
+        printf(YELLOW "Connecting to %s:%d …\n" RESET, SERVER_HOST, SERVER_PORT);
+        if (connect(fd, (struct sockaddr*)&srv, sizeof(srv)) < 0) {
+            perror("connect"); close(fd); return 1;
+        }
 
-    if (strncmp(buf, "AUTH_OK NURSE", 13) != 0) {
-        printf(RED "Authentication failed: %s\n" RESET, buf);
+        recv_line(fd, buf, sizeof(buf));   /* banner */
+        printf(DIM "%s\n" RESET, buf);
+
+        printf(BOLD "Login attempt %d/3\n" RESET, attempt);
+        printf("Username: "); fflush(stdout); scanf("%31s", username);
+        printf("Password: "); fflush(stdout); scanf("%63s", password);
+
+        send_line(fd, "AUTH %s %s", username, password);
+        recv_line(fd, buf, sizeof(buf));
+
+        if (strncmp(buf, "AUTH_OK NURSE", 13) == 0) {
+            sscanf(buf, "AUTH_OK NURSE %d", &user_id);
+            printf(BRIGHT_GREEN "✓ Authenticated as Nurse (id=%d)\n" RESET, user_id);
+            authed = 1;
+            break;
+        }
+
+        /* Wrong credentials — server closes socket after AUTH_FAIL */
+        printf(RED "✗ Authentication failed: %s" RESET, buf);
+        if (attempt < 3) {
+            printf(YELLOW "  (%d attempt(s) remaining)\n" RESET, 3 - attempt);
+        } else {
+            printf("\n");
+        }
+        close(fd);
+        /* Reopen socket for the next attempt */
+        fd = socket(AF_INET, SOCK_STREAM, 0);
+    }
+
+    if (!authed) {
+        printf(RED "Too many failed attempts. Exiting.\n" RESET);
         close(fd); return 1;
     }
-    int user_id = 0;
-    sscanf(buf, "AUTH_OK NURSE %d", &user_id);
-    printf(BRIGHT_GREEN "✓ Authenticated as Nurse (id=%d)\n" RESET, user_id);
 
     recv_line(fd, buf, sizeof(buf));   /* READY */
     printf(DIM "%s\n" RESET, buf);
@@ -269,16 +306,19 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < pcount; i++)
         printf("  [%d] Patient #%d — %s\n", i+1, pids[i], pnames[i]);
 
-    /* ── Select initial patient ───────────────────────────────── */
+    /* ── Select initial patient (re-prompt on bad input) ─────── */
     int choice = 0;
     if (pcount == 1) {
         choice = 0;
         printf("Auto-selected patient #%d (%s)\n", pids[0], pnames[0]);
     } else {
-        printf("Select patient [1-%d]: ", pcount); fflush(stdout);
-        scanf("%d", &choice); choice--;
-        if (choice < 0 || choice >= pcount)
-            { printf("Invalid.\n"); close(fd); return 1; }
+        do {
+            printf("Select patient [1-%d]: ", pcount); fflush(stdout);
+            if (scanf("%d", &choice) != 1) choice = 0;
+            choice--;
+            if (choice < 0 || choice >= pcount)
+                printf(YELLOW "  Invalid choice, please enter a number between 1 and %d.\n" RESET, pcount);
+        } while (choice < 0 || choice >= pcount);
     }
     int patient_id = pids[choice];
     printf(GREEN "\n[NURSE] Monitoring patient #%d — %s\n\n" RESET,
@@ -301,7 +341,7 @@ int main(int argc, char* argv[]) {
         pthread_mutex_unlock(&state_lock);
 
         if (is_paused) {
-            int cont = show_pause_menu(fd, pids, pnames, pcount, &patient_id);
+            int cont = show_pause_menu(fd, &patient_id);
             pthread_mutex_lock(&state_lock);
             paused = 0;
             pthread_mutex_unlock(&state_lock);
@@ -309,11 +349,20 @@ int main(int argc, char* argv[]) {
             if (!cont) { running = 0; break; }
 
             print_separator();
-            printf(GREEN "[NURSE] Monitoring patient #%d", patient_id);
-            for (int i = 0; i < pcount; i++)
-                if (pids[i] == patient_id) { printf(" — %s", pnames[i]); break; }
-            printf("\n" RESET);
+            printf(GREEN "[NURSE] Monitoring patient #%d\n", patient_id);
             printf(CYAN "Streaming resumed. Press Enter to pause.\n\n" RESET);
+            continue;
+        }
+
+        /* Verify patient is still active and assigned before doing anything */
+        send_line(fd, "CHECK_PATIENT %d", patient_id);
+        recv_line(fd, buf, sizeof(buf));
+        if (strncmp(buf, "OK", 2) != 0) {
+            printf("\n  [!] %s\n", buf + 6);
+            printf("  Opening menu — please switch patient or quit.\n\n");
+            pthread_mutex_lock(&state_lock);
+            paused = 1;
+            pthread_mutex_unlock(&state_lock);
             continue;
         }
 
@@ -335,12 +384,19 @@ int main(int argc, char* argv[]) {
 
         recv_line(fd, buf, sizeof(buf));
 
-        if (strncmp(buf, "ALERT", 5) == 0)
-            printf(BRIGHT_RED BOLD "⚠ SERVER ALERT: %s\n" RESET, buf+6);
-        else if (strncmp(buf, "OK", 2) == 0)
-            printf(GREEN "  ✓ Recorded\n" RESET);
-        else
-            printf(YELLOW "  Server: %s\n" RESET, buf);
+        if (strncmp(buf, "ALERT", 5) == 0) {
+            printf("  *** SERVER ALERT: %s\n", buf + 6);
+        } else if (strncmp(buf, "OK", 2) == 0) {
+            printf("  Recorded.\n");
+        } else if (strncmp(buf, "ERROR", 5) == 0) {
+            printf("\n  [!] Server error: %s\n", buf + 6);
+            printf("  Opening menu — please switch patient or quit.\n\n");
+            pthread_mutex_lock(&state_lock);
+            paused = 1;
+            pthread_mutex_unlock(&state_lock);
+        } else {
+            printf("  Server: %s\n", buf);
+        }
     }
 
     /* ── Cleanup ──────────────────────────────────────────────── */

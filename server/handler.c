@@ -1,3 +1,4 @@
+// done
 /*
  * server/handler.c
  * Per-client thread: authenticates, then dispatches to role handler.
@@ -20,6 +21,8 @@ static Patient* find_patient(int id) {
     return NULL;
 }
 
+
+// assigns an id to the new patient 
 static int next_patient_id(void) {
     int mx = 100;
     for (int i = 0; i < g_state.patient_count; i++)
@@ -28,7 +31,11 @@ static int next_patient_id(void) {
     return mx + 1;
 }
 
+
 /* Send multi-line patient data block */
+// it takes the patient's data, iterates backwards through their circular history buffer, and formats everything 
+// into neat strings to push over the TCP socket back to the Doctor.
+
 static void send_patient_data(int fd, const Patient* p) {
     char ts[32]; timestamp_str(ts, sizeof(ts), p->admitted_at);
     send_line(fd, "PATIENT %d|%s|%d|%s|%d|%s",
@@ -119,16 +126,49 @@ static void handle_nurse(int fd, User* user) {
             pthread_mutex_unlock(&g_state.patient_mutex);
             send_patient_data(fd, &cp);
 
+        } else if (strncmp(buf, "CHECK_PATIENT ", 14) == 0) {
+            /* Lightweight liveness check — no data sent back, just OK or ERROR.
+             * Used by the client to verify the patient is still active and
+             * assigned before generating/displaying a vitals reading. */
+            int pid = atoi(buf+14);
+            pthread_mutex_lock(&g_state.patient_mutex);
+            Patient* p = find_patient(pid);   /* returns NULL if inactive */
+            int assigned = 0;
+            if (p) {
+                for (int i = 0; i < p->nurse_count; i++)
+                    if (p->assigned_nurses[i] == user->user_id) { assigned = 1; break; }
+            }
+            pthread_mutex_unlock(&g_state.patient_mutex);
+            if (!p)       send_line(fd, "ERROR patient %d has been discharged", pid);
+            else if (!assigned) send_line(fd, "ERROR no longer assigned to patient %d", pid);
+            else          send_line(fd, "OK");
+
         } else if (strcmp(buf, "LIST_PATIENTS") == 0) {
             pthread_mutex_lock(&g_state.patient_mutex);
-            send_line(fd, "PATIENTS %d", g_state.patient_count);
+            /* Count only patients assigned to this nurse */
+            int assigned_cnt = 0;
             for (int i = 0; i < g_state.patient_count; i++) {
-                if (g_state.patients[i].active)
-                    send_line(fd, "%d|%s", g_state.patients[i].patient_id,
-                              g_state.patients[i].name);
+                Patient* p = &g_state.patients[i];
+                if (!p->active) continue;
+                for (int j = 0; j < p->nurse_count; j++) {
+                    if (p->assigned_nurses[j] == user->user_id) { assigned_cnt++; break; }
+                }
+            }
+            send_line(fd, "PATIENTS %d", assigned_cnt);
+            for (int i = 0; i < g_state.patient_count; i++) {
+                Patient* p = &g_state.patients[i];
+                if (!p->active) continue;
+                for (int j = 0; j < p->nurse_count; j++) {
+                    if (p->assigned_nurses[j] == user->user_id) {
+                        send_line(fd, "%d|%s", p->patient_id, p->name);
+                        break;
+                    }
+                }
             }
             send_line(fd, ".");
             pthread_mutex_unlock(&g_state.patient_mutex);
+            // lists the all the patients assigned to that particular nurse
+        
 
         } else if (strcmp(buf, "QUIT") == 0) {
             send_line(fd, "OK bye");
@@ -140,6 +180,9 @@ static void handle_nurse(int fd, User* user) {
 }
 
 /* ─── DOCTOR handler ────────────────────────────────────────── */
+//  The very first thing a Doctor client does is send its Process ID (PID) to the server. The server stores this 
+//  PID in RAM. This is critical so that the server knows exactly who to send the SIGUSR1 signal to later when an anomaly occurs!
+// 3 things - REGISTER_PID, GET_PATIENT, MY_PATIENTS
 static void handle_doctor(int fd, User* user) {
     send_line(fd, "READY doctor %s", user->username);
     char buf[BUFFER_SIZE];
@@ -198,7 +241,6 @@ static void handle_doctor(int fd, User* user) {
 
 /* ─── ADMIN handler ─────────────────────────────────────────── */
 static void handle_admin(int fd, User* user) {
-    (void)user;
     send_line(fd, "READY admin %s", user->username);
     char buf[BUFFER_SIZE];
 
@@ -240,23 +282,49 @@ static void handle_admin(int fd, User* user) {
 
         } else if (strncmp(buf, "DELETE_USER ", 12) == 0) {
             int uid = atoi(buf+12);
+
+            /* Guard 1: cannot delete yourself */
+            if (uid == user->user_id) {
+                send_line(fd, "ERROR cannot delete your own account");
+                continue;
+            }
+
+            /* Guard 2: cannot delete another admin */
+            pthread_mutex_lock(&g_state.user_mutex);
+            User* target = find_user_by_id(uid);
+            int target_is_admin = (target != NULL && target->role == ROLE_ADMIN);
+            pthread_mutex_unlock(&g_state.user_mutex);
+            if (target_is_admin) {
+                send_line(fd, "ERROR cannot delete another admin account");
+                continue;
+            }
+
             if (delete_user(uid) == 0) send_line(fd, "OK deleted");
             else send_line(fd, "ERROR user not found");
 
         } else if (strcmp(buf, "LIST_PATIENTS") == 0) {
             pthread_mutex_lock(&g_state.patient_mutex);
-            /* Count only active patients — the header count must match
-             * the number of data lines sent, or the client loop over-reads. */
             int active_cnt = 0;
             for (int i = 0; i < g_state.patient_count; i++)
                 if (g_state.patients[i].active) active_cnt++;
             send_line(fd, "PATIENTS %d", active_cnt);
             for (int i = 0; i < g_state.patient_count; i++) {
                 Patient* p = &g_state.patients[i];
-                if (p->active)
-                    send_line(fd, "%d|%s|%d|%s|%d",
-                              p->patient_id, p->name, p->age,
-                              p->condition, p->assigned_doctor_id);
+                if (!p->active) continue;
+                /* Build comma-separated nurse ID list */
+                char nurses_str[64] = "-";
+                if (p->nurse_count > 0) {
+                    int pos = 0;
+                    for (int j = 0; j < p->nurse_count; j++) {
+                        pos += snprintf(nurses_str + pos,
+                                        sizeof(nurses_str) - pos,
+                                        j == 0 ? "%d" : ",%d",
+                                        p->assigned_nurses[j]);
+                    }
+                }
+                send_line(fd, "%d|%s|%d|%s|%d|%s",
+                          p->patient_id, p->name, p->age,
+                          p->condition, p->assigned_doctor_id, nurses_str);
             }
             send_line(fd, ".");
             pthread_mutex_unlock(&g_state.patient_mutex);
@@ -313,19 +381,36 @@ static void handle_admin(int fd, User* user) {
             int pid, nid;
             if (sscanf(buf+13, "%d %d", &pid, &nid) != 2)
                 { send_line(fd,"ERROR bad format"); continue; }
+
+            /* Validate nurse_id is an active ROLE_NURSE */
+            pthread_mutex_lock(&g_state.user_mutex);
+            User* nurse = find_user_by_id(nid);
+            int nurse_ok = (nurse != NULL && nurse->active && nurse->role == ROLE_NURSE);
+            pthread_mutex_unlock(&g_state.user_mutex);
+            if (!nurse_ok) {
+                send_line(fd, "ERROR nurse_id %d is not a valid active nurse", nid);
+                continue;
+            }
+
             pthread_mutex_lock(&g_state.patient_mutex);
             Patient* p = find_patient(pid);
             if (!p) { pthread_mutex_unlock(&g_state.patient_mutex); send_line(fd,"ERROR no patient"); continue; }
-            if (p->nurse_count < 8) {
-                p->assigned_nurses[p->nurse_count++] = nid;
+
+            /* Only one nurse per patient */
+            if (p->nurse_count > 0) {
+                int existing = p->assigned_nurses[0];
+                pthread_mutex_unlock(&g_state.patient_mutex);
+                send_line(fd, "ERROR patient %d already assigned to nurse %d", pid, existing);
+            } else {
+                p->assigned_nurses[0] = nid;
+                p->nurse_count = 1;
                 Patient cp = *p;
                 pthread_mutex_unlock(&g_state.patient_mutex);
                 save_patient(&cp);
                 send_line(fd, "OK assigned");
-            } else {
-                pthread_mutex_unlock(&g_state.patient_mutex);
-                send_line(fd, "ERROR nurse limit");
+                server_log("Nurse %d assigned to patient %d", nid, pid);
             }
+            
 
         } else if (strcmp(buf, "SERVER_STATS") == 0) {
             pthread_mutex_lock(&g_state.patient_mutex);
@@ -366,6 +451,8 @@ static void handle_guest(int fd) {
 }
 
 /* ─── Main client thread ────────────────────────────────────── */
+// entry point for the client after connecting to the server and then based on the role it will be
+// sent to the corresponding handler
 void* client_thread(void* arg) {
     ClientArg* ca = (ClientArg*)arg;
     int fd = ca->fd;

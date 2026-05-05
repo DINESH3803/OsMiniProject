@@ -1,3 +1,4 @@
+// done
 /*
  * server/server.c
  * Main ICU server: initialises state, loads/creates default data,
@@ -33,7 +34,7 @@ void server_log(const char* fmt, ...) {
         fflush(g_state.logfile);
         va_end(ap);
     }
-    /* Also print to stdout with colour */
+
     va_list ap2; va_start(ap2, fmt);
     printf(DIM "[%s] " RESET, ts);
     vprintf(fmt, ap2);
@@ -41,6 +42,9 @@ void server_log(const char* fmt, ...) {
     va_end(ap2);
     pthread_mutex_unlock(&g_state.log_mutex);
 }
+// custom logging func that writes messeges to both terminal and log file and uses synchornization
+// holding the lock(mutex)
+
 
 /* ─── Signal handler ────────────────────────────────────────── */
 static void handle_sigint(int sig) {
@@ -49,8 +53,11 @@ static void handle_sigint(int sig) {
     g_state.running = 0;
     shutdown(g_state.server_fd, SHUT_RDWR);
 }
+// catches ctrl+c and shuts down the server
+
 
 /* ─── Seed default users & patients if DB is empty ──────────── */
+// kind of a bootstrapping func to initially load dummy patients(if empty)
 static void init_defaults(void) {
     if (g_state.user_count == 0) {
         struct { const char* u; const char* p; Role r; } udefs[] = {
@@ -65,6 +72,7 @@ static void init_defaults(void) {
             add_user(udefs[i].u, udefs[i].p, udefs[i].r);
         server_log("Default users created");
     }
+    // creates default users and logs them.
 
     if (g_state.patient_count == 0) {
         /* Find doctor IDs */
@@ -76,22 +84,29 @@ static void init_defaults(void) {
                 else if (doc2 < 0) doc2 = g_state.users[i].user_id;
             }
         }
-        int nurse_id = -1;
-        for (int i = 0; i < g_state.user_count; i++)
-            if (g_state.users[i].role == ROLE_NURSE && g_state.users[i].active)
-                { nurse_id = g_state.users[i].user_id; break; }
+        
+        /* Find both nurse IDs */
+        int nurse1 = -1, nurse2 = -1;
+        for (int i = 0; i < g_state.user_count; i++) {
+            if (g_state.users[i].role == ROLE_NURSE && g_state.users[i].active) {
+                if (nurse1 < 0) nurse1 = g_state.users[i].user_id;
+                else if (nurse2 < 0) nurse2 = g_state.users[i].user_id;
+            }
+        }
         pthread_mutex_unlock(&g_state.user_mutex);
 
-        struct { const char* name; int age; int doc; const char* cond; } pdefs[] = {
-            {"John Doe",       65, doc1, "Cardiac Arrhythmia"    },
-            {"Jane Smith",     72, doc1, "Respiratory Failure"   },
-            {"Bob Johnson",    55, doc1, "Hypertensive Crisis"   },
-            {"Alice Williams", 48, doc2, "Post-Cardiac Surgery"  },
-            {"Carlos Reyes",   61, doc2, "Septic Shock"          },
+        /* 6 patients: first 3 → nurse1, last 3 → nurse2 */
+        struct { const char* name; int age; int doc; const char* cond; int nurse; } pdefs[] = {
+            {"John Doe",       65, doc1, "Cardiac Arrhythmia",   nurse1},
+            {"Jane Smith",     72, doc1, "Respiratory Failure",  nurse1},
+            {"Bob Johnson",    55, doc1, "Hypertensive Crisis",  nurse1},
+            {"Alice Williams", 48, doc2, "Post-Cardiac Surgery", nurse2},
+            {"Carlos Reyes",   61, doc2, "Septic Shock",         nurse2},
+            {"Maria Garcia",   39, doc2, "Acute Kidney Injury",  nurse2},
         };
         pthread_mutex_lock(&g_state.patient_mutex);
         int base_id = 101;
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 6; i++) {
             Patient* p = &g_state.patients[g_state.patient_count++];
             memset(p, 0, sizeof(Patient));
             p->patient_id = base_id + i;
@@ -99,25 +114,16 @@ static void init_defaults(void) {
             p->age = pdefs[i].age;
             strncpy(p->condition, pdefs[i].cond, sizeof(p->condition)-1);
             p->assigned_doctor_id = pdefs[i].doc;
-            if (nurse_id > 0) {
-                p->assigned_nurses[0] = nurse_id;
+            if (pdefs[i].nurse > 0) {
+                p->assigned_nurses[0] = pdefs[i].nurse;
                 p->nurse_count = 1;
-                /* assign second nurse too if exists */
-                int n2 = -1;
-                for (int j = 0; j < g_state.user_count; j++) {
-                    if (g_state.users[j].role == ROLE_NURSE &&
-                        g_state.users[j].active &&
-                        g_state.users[j].user_id != nurse_id)
-                        { n2 = g_state.users[j].user_id; break; }
-                }
-                if (n2 > 0) { p->assigned_nurses[1] = n2; p->nurse_count = 2; }
             }
             p->active = 1;
             p->admitted_at = time(NULL);
             save_patient(p);
         }
         pthread_mutex_unlock(&g_state.patient_mutex);
-        server_log("Default patients created");
+        server_log("Default patients created (6 patients, 3 per nurse)");
     }
 }
 
@@ -154,7 +160,8 @@ int main(void) {
     init_defaults();
 
     /* POSIX message queue */
-    struct mq_attr mqa = { .mq_flags=0, .mq_maxmsg=64,
+    //uses mq_open() to create a posix mq and doctor_pipes() to create and prepare the named pipes
+    struct mq_attr mqa = { .mq_flags=0, .mq_maxmsg=10,
                            .mq_msgsize=sizeof(Alert), .mq_curmsgs=0 };
     mq_unlink(MQUEUE_NAME);                         /* clean stale queue */
     g_state.mqueue = mq_open(MQUEUE_NAME, O_CREAT|O_RDWR|O_NONBLOCK, 0644, &mqa);
@@ -166,6 +173,7 @@ int main(void) {
     /* Named pipes for doctors */
     create_doctor_pipes();
 
+
     /* Signal handlers */
     signal(SIGINT,  handle_sigint);
     signal(SIGPIPE, SIG_IGN);       /* ignore broken-pipe from dead clients */
@@ -175,6 +183,8 @@ int main(void) {
     if (g_state.server_fd < 0) { perror("socket"); return 1; }
     int opt = 1;
     setsockopt(g_state.server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    // creates the master TCP socket and sets the so_reuseadr option to prevent addr "already in use" errors 
+    
 
     struct sockaddr_in addr = {0};
     addr.sin_family      = AF_INET;
@@ -185,12 +195,14 @@ int main(void) {
         { perror("bind"); return 1; }
     if (listen(g_state.server_fd, 10) < 0)
         { perror("listen"); return 1; }
+    // and bind()s it to the port 8888 and listens.
 
     printf(GREEN BOLD "\n[SERVER] Listening on port %d  (Ctrl+C to stop)\n\n" RESET,
            SERVER_PORT);
     server_log("Listening on port %d", SERVER_PORT);
 
     /* ── Accept loop ─────────────────────────────────────────── */
+    // Enters a while (g_state.running) loop. It waits at accept() until a client connects.
     while (g_state.running) {
         struct sockaddr_in cli;
         socklen_t cli_len = sizeof(cli);
@@ -208,12 +220,16 @@ int main(void) {
         pthread_t tid;
         pthread_attr_t attr;
         pthread_attr_init(&attr);
-        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED); // gets the resourses as soon as the thread finishes its exec
         pthread_create(&tid, &attr, client_thread, ca);
         pthread_attr_destroy(&attr);
     }
+    //  As soon as a client connects, it calls 
+    // pthread_create() to spawn a brand new, detached thread pointing to client_thread() (which lives in handler.c). The loop immediately 
+    // goes back to waiting for the next client.
 
     /* ── Shutdown ─────────────────────────────────────────────── */
+    // cleans socket, mutexes, semaphores, mq and log file
     server_log("=== Server shutting down ===");
     if (g_state.mqueue != (mqd_t)-1) {
         mq_close(g_state.mqueue);

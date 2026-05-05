@@ -40,27 +40,27 @@
 #define LOG_FILE        "logs/server.log"
 #define MQUEUE_NAME     "/icu_mqueue"
 
-/* ─── ANSI Colours ──────────────────────────────────────────── */
-#define RESET         "\033[0m"
-#define BOLD          "\033[1m"
-#define DIM           "\033[2m"
-#define RED           "\033[31m"
-#define GREEN         "\033[32m"
-#define YELLOW        "\033[33m"
-#define BLUE          "\033[34m"
-#define MAGENTA       "\033[35m"
-#define CYAN          "\033[36m"
-#define WHITE         "\033[37m"
-#define BRIGHT_RED    "\033[91m"
-#define BRIGHT_GREEN  "\033[92m"
-#define BRIGHT_YELLOW "\033[93m"
-#define BRIGHT_BLUE   "\033[94m"
-#define BRIGHT_MAGENTA "\033[95m"
-#define BRIGHT_CYAN   "\033[96m"
-#define BG_RED        "\033[41m"
-#define BG_GREEN      "\033[42m"
-#define BG_YELLOW     "\033[43m"
-#define BG_BLUE       "\033[44m"
+/* ─── ANSI Colours (disabled — plain output) ────────────────── */
+#define RESET          ""
+#define BOLD           ""
+#define DIM            ""
+#define RED            ""
+#define GREEN          ""
+#define YELLOW         ""
+#define BLUE           ""
+#define MAGENTA        ""
+#define CYAN           ""
+#define WHITE          ""
+#define BRIGHT_RED     ""
+#define BRIGHT_GREEN   ""
+#define BRIGHT_YELLOW  ""
+#define BRIGHT_BLUE    ""
+#define BRIGHT_MAGENTA ""
+#define BRIGHT_CYAN    ""
+#define BG_RED         ""
+#define BG_GREEN       ""
+#define BG_YELLOW      ""
+#define BG_BLUE        ""
 
 /* ─── Roles ─────────────────────────────────────────────────── */
 typedef enum { ROLE_ADMIN=0, ROLE_DOCTOR, ROLE_NURSE, ROLE_GUEST, ROLE_NONE } Role;
@@ -72,15 +72,6 @@ static inline const char* role_to_str(Role r) {
         case ROLE_NURSE:  return "NURSE";
         case ROLE_GUEST:  return "GUEST";
         default:          return "UNKNOWN";
-    }
-}
-static inline const char* role_colour(Role r) {
-    switch(r) {
-        case ROLE_ADMIN:  return BRIGHT_MAGENTA;
-        case ROLE_DOCTOR: return BRIGHT_CYAN;
-        case ROLE_NURSE:  return BRIGHT_GREEN;
-        case ROLE_GUEST:  return DIM;
-        default:          return RESET;
     }
 }
 static inline Role str_to_role(const char* s) {
@@ -128,7 +119,7 @@ static inline char* timestamp_str(char* buf, size_t n, time_t t){
 }
 
 /* ─── Safe send/recv helpers ────────────────────────────────── */
-static inline int send_line(int fd, const char* fmt, ...) {
+static inline int send_line(int fd, const char* fmt, ...) {         // helps in sending inline messages safely
     char buf[BUFFER_SIZE];
     va_list ap;
     va_start(ap, fmt);

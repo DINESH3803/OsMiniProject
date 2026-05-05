@@ -1,3 +1,4 @@
+// done
 /*
  * server/filestore.c
  * Persistent patient records stored as binary files in data/patients/.
@@ -20,10 +21,13 @@ static void flock_clr(int fd) {
     struct flock fl = { .l_type=F_UNLCK, .l_whence=SEEK_SET };
     fcntl(fd, F_SETLK, &fl);
 }
+// flock_set uses fcntl with F_SETLKW (Set Lock Wait). If another thread already has the file locked, 
+// F_SETLKW tells the current thread to politely go to sleep and wait until the file is unlocked. 
+// flock_clr uses F_UNLCK to release the lock when the thread is done.
 
 /* ─── Save one patient to disk ──────────────────────────────── */
 void save_patient(const Patient* p) {
-    /* Semaphore: cap concurrent writers to 3 */
+    /* Semaphore: cap concurrent writers to 3 */ // to avoid disk thrashing
     sem_wait(&g_state.write_sem);
 
     char path[256];
@@ -39,6 +43,8 @@ void save_patient(const Patient* p) {
     close(fd);
     sem_post(&g_state.write_sem);
 }
+// writes patient details to his .dat file and before that it uses semaphores and file locking to 
+// avoid race conditions
 
 /* ─── Load one patient from disk ────────────────────────────── */
 int load_patient_from_file(int id, Patient* out) {
@@ -54,8 +60,12 @@ int load_patient_from_file(int id, Patient* out) {
     close(fd);
     return (r == sizeof(Patient)) ? 0 : -1;
 }
+// reads patient details from his .dat file.
+// diff between read and write locks is read can allow multiple threads to read but write 
+// doesnt allow any other.
 
 /* ─── Scan directory and load all patients into g_state ─────── */
+// bootstraping func to called by main to load all the patients in to the global struct
 void load_patients(void) {
     pthread_mutex_lock(&g_state.patient_mutex);
     g_state.patient_count = 0;
@@ -77,151 +87,3 @@ void load_patients(void) {
     pthread_mutex_unlock(&g_state.patient_mutex);
     server_log("Loaded %d patients from disk", g_state.patient_count);
 }
-/*
- * server/server.h
- * Global server state shared across all server translation units.
- */
-#ifndef SERVER_H
-#define SERVER_H
-
-#include <pthread.h>
-#include <semaphore.h>
-#include <mqueue.h>
-#include "../include/common.h"
-#include "../include/auth.h"
-#include "../include/patient.h"
-#include "../include/ipc.h"
-
-/* ─── Global server state ───────────────────────────────────── */
-typedef struct ServerState {
-    Patient         patients[MAX_PATIENTS];
-    int             patient_count;
-    pthread_mutex_t patient_mutex;
-
-    User            users[MAX_USERS];
-    int             user_count;
-    pthread_mutex_t user_mutex;
-
-    sem_t           write_sem;   /* caps concurrent file writes */
-
-    mqd_t           mqueue;
-    FILE*           logfile;
-    pthread_mutex_t log_mutex;
-
-    int             server_fd;
-    volatile int    running;
-} ServerState;
-
-/* The one global instance — defined in server.c, extern everywhere else */
-extern ServerState g_state;
-
-/* Per-client thread argument */
-typedef struct {
-    int                fd;
-    struct sockaddr_in addr;
-} ClientArg;
-
-/* Function prototypes (implemented across server source files) */
-
-/* server.c */
-void server_log(const char* fmt, ...);
-
-/* auth.c */
-void  load_users(void);
-void  save_users(void);
-User* find_user_by_name(const char* name);
-User* find_user_by_id(int id);
-User* authenticate(const char* name, const char* pass);
-int   add_user(const char* name, const char* pass, Role role);
-int   delete_user(int uid);
-
-/* filestore.c */
-void load_patients(void);
-void save_patient(const Patient* p);
-int  load_patient_from_file(int id, Patient* out);
-
-/* anomaly.c *//*
- * server/server.h
- * Global server state shared across all server translation units.
- */
-#ifndef SERVER_H
-#define SERVER_H
-
-#include <pthread.h>
-#include <semaphore.h>
-#include <mqueue.h>
-#include "../include/common.h"
-#include "../include/auth.h"
-#include "../include/patient.h"
-#include "../include/ipc.h"
-
-/* ─── Global server state ───────────────────────────────────── */
-typedef struct ServerState {
-    Patient         patients[MAX_PATIENTS];
-    int             patient_count;
-    pthread_mutex_t patient_mutex;
-
-    User            users[MAX_USERS];
-    int             user_count;
-    pthread_mutex_t user_mutex;
-
-    sem_t           write_sem;   /* caps concurrent file writes */
-
-    mqd_t           mqueue;
-    FILE*           logfile;
-    pthread_mutex_t log_mutex;
-
-    int             server_fd;
-    volatile int    running;
-} ServerState;
-
-/* The one global instance — defined in server.c, extern everywhere else */
-extern ServerState g_state;
-
-/* Per-client thread argument */
-typedef struct {
-    int                fd;
-    struct sockaddr_in addr;
-} ClientArg;
-
-/* Function prototypes (implemented across server source files) */
-
-/* server.c */
-void server_log(const char* fmt, ...);
-
-/* auth.c */
-void  load_users(void);
-void  save_users(void);
-User* find_user_by_name(const char* name);
-User* find_user_by_id(int id);
-User* authenticate(const char* name, const char* pass);
-int   add_user(const char* name, const char* pass, Role role);
-int   delete_user(int uid);
-
-/* filestore.c */
-void load_patients(void);
-void save_patient(const Patient* p);
-int  load_patient_from_file(int id, Patient* out);
-
-/* anomaly.c */
-AlertSeverity detect_anomaly(const Patient* p, const Vitals* v, Alert* out);
-
-/* ipc_alert.c */
-void create_doctor_pipes(void);
-void send_alert(const Alert* a);
-
-/* handler.c */
-void* client_thread(void* arg);
-
-#endif /* SERVER_H */
-
-AlertSeverity detect_anomaly(const Patient* p, const Vitals* v, Alert* out);
-
-/* ipc_alert.c */
-void create_doctor_pipes(void);
-void send_alert(const Alert* a);
-
-/* handler.c */
-void* client_thread(void* arg);
-
-#endif /* SERVER_H */

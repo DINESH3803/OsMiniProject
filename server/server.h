@@ -1,3 +1,4 @@
+// done
 /*
  * server/server.h
  * Global server state shared across all server translation units.
@@ -18,16 +19,27 @@ typedef struct ServerState {
     Patient         patients[MAX_PATIENTS];
     int             patient_count;
     pthread_mutex_t patient_mutex;
+    // protects patients array and patient_count in memory
+    // imagine a Nurse is updating a patient's blood pressure, but at the exact same 
+    // millisecond, a Doctor requests to view that patient's history. Without this mutex, 
+    // the Doctor might read the data while it is only half-written (a "dirty read"). 
 
     User            users[MAX_USERS];
     int             user_count;
     pthread_mutex_t user_mutex;
+    // Similar to the patient mutex, this prevents the system from crashing if an Admin is 
+    // deleting a user account at the exact same moment that user is trying to log in.
 
     sem_t           write_sem;   /* caps concurrent file writes */
+    // prevents multiple threads from writing to the same file at the same time(race conditions).
 
     mqd_t           mqueue;
+    //  the server drops an alert message into this queue.
+
     FILE*           logfile;
+    // pointer to the logfile
     pthread_mutex_t log_mutex;
+    // ensures that only one thread can write to the log file at a time(prevents race conditions)
 
     int             server_fd;
     volatile int    running;

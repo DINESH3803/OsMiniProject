@@ -16,7 +16,9 @@
 static volatile int running = 1;
 static void on_sigint(int s){ (void)s; running=0; }
 
-int main(void) {
+int guest_main(void) 
+{
+    running = 1;
     signal(SIGINT, on_sigint);
     print_banner("  ICU GUEST VIEWER  ", DIM);
 
@@ -50,8 +52,14 @@ int main(void) {
                "║ [3] Quit                    ║\n"
                "╚═════════════════════════════╝\n" RESET "Choice: ");
         fflush(stdout);
-        int ch=0;
-        if(scanf("%d",&ch)!=1){ running=0; break; }
+        int ch = 0;
+        int res = scanf("%d",&ch);
+        if (res == EOF) break;
+        if(res != 1){ 
+            int c; while ((c = getchar()) != '\n' && c != EOF);
+            printf("Invalid input.\n");
+            continue; 
+        }
 
         switch(ch){
             case 1:

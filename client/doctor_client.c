@@ -31,7 +31,8 @@ static void on_sigusr1(int s) { (void)s; alert_flag = 1; }
 static void on_sigint (int s) { (void)s; running = 0; }
 
 /* ─── Background thread: reads named pipe for alert structs ──── */
-static void* pipe_reader(void* arg) {
+static void* pipe_reader(void* arg) 
+{
     char pipe_path[128];
     alert_pipe_path(pipe_path, sizeof(pipe_path), (int)(intptr_t)arg);
 
@@ -43,7 +44,8 @@ static void* pipe_reader(void* arg) {
         Alert a;
         ssize_t r = read(pfd, &a, sizeof(Alert));
         close(pfd);
-        if (r == sizeof(Alert)) {
+        if (r == sizeof(Alert)) 
+        {
             print_alert(&a);
             fflush(stdout);
         }
@@ -52,7 +54,8 @@ static void* pipe_reader(void* arg) {
 }
 
 /* ─── Send a command and collect response lines ─────────────── */
-static void do_my_patients(void) {
+static void do_my_patients(void) 
+{
     char buf[BUFFER_SIZE];
     send_line(srv_fd, "MY_PATIENTS");
     recv_line(srv_fd, buf, sizeof(buf));   /* PATIENTS <N> */
@@ -65,7 +68,8 @@ static void do_my_patients(void) {
 
     printf(BOLD "\n  %-5s  %-25s  %-5s  %s\n" RESET, "ID", "Name", "Age", "Condition");
     print_separator();
-    while (recv_line(srv_fd, buf, sizeof(buf)) > 0) {
+    while (recv_line(srv_fd, buf, sizeof(buf)) > 0) 
+    {
         if (strcmp(buf, ".") == 0) break;  /* sentinel always consumed */
         int pid, age; char name[64], cond[128];
         sscanf(buf, "%d|%63[^|]|%d|%127[^\n]", &pid, name, &age, cond);
@@ -74,12 +78,14 @@ static void do_my_patients(void) {
     }
 }
 
-static void do_view_patient(int pid) {
+static void do_view_patient(int pid) 
+{
     char buf[BUFFER_SIZE];
     send_line(srv_fd, "GET_PATIENT %d", pid);
     recv_line(srv_fd, buf, sizeof(buf));
 
-    if (strncmp(buf, "ERROR", 5) == 0) {
+    if (strncmp(buf, "ERROR", 5) == 0) 
+    {
         printf(RED "  %s\n" RESET, buf); return;
     }
     /* PATIENT id|name|age|condition|doctor|admitted */
@@ -92,7 +98,8 @@ static void do_view_patient(int pid) {
     recv_line(srv_fd, buf, sizeof(buf)); /* HISTORY <n> */
     int hcnt = 0; sscanf(buf, "HISTORY %d", &hcnt);
     if (hcnt == 0) { printf("  No vitals on record yet.\n"); }
-    else {
+    else 
+    {
         printf(BOLD "  %-20s  %6s  %10s  %6s  %6s  %5s\n" RESET,
                "Timestamp", "HR", "BP", "SpO2", "Temp", "RR");
         print_separator();
@@ -122,7 +129,11 @@ static void do_view_patient(int pid) {
     recv_line(srv_fd, buf, sizeof(buf));
 }
 
-int main(void) {
+int doctor_main(void) 
+{
+    running    = 1;
+    alert_flag = 0;
+    doctor_id  = 0;
     signal(SIGUSR1, on_sigusr1);
     signal(SIGINT,  on_sigint);
 
@@ -135,25 +146,47 @@ int main(void) {
     srv.sin_port   = htons(SERVER_PORT);
     inet_pton(AF_INET, SERVER_HOST, &srv.sin_addr);
 
-    printf(YELLOW "Connecting to %s:%d ...\n" RESET, SERVER_HOST, SERVER_PORT);
-    if (connect(srv_fd, (struct sockaddr*)&srv, sizeof(srv)) < 0)
-        { perror("connect"); return 1; }
-
+    /* ── Connect + authenticate (up to 3 attempts) ───────────── */
     char buf[BUFFER_SIZE];
-    recv_line(srv_fd, buf, sizeof(buf));
-
-    /* ── Authenticate ─────────────────────────────────────────── */
+    int authed = 0;
     char username[32], password[64];
-    printf("Username: "); fflush(stdout); scanf("%31s", username);
-    printf("Password: "); fflush(stdout); scanf("%63s", password);
-    send_line(srv_fd, "AUTH %s %s", username, password);
-    recv_line(srv_fd, buf, sizeof(buf));
 
-    if (strncmp(buf, "AUTH_OK DOCTOR", 14) != 0) {
-        printf(RED "Auth failed: %s\n" RESET, buf); close(srv_fd); return 1;
+    for (int attempt = 1; attempt <= 3; attempt++) 
+    {
+        printf(YELLOW "Connecting to %s:%d ...\n" RESET, SERVER_HOST, SERVER_PORT);
+        if (connect(srv_fd, (struct sockaddr*)&srv, sizeof(srv)) < 0)
+            { perror("connect"); close(srv_fd); return 1; }
+
+        recv_line(srv_fd, buf, sizeof(buf));   /* banner */
+
+        printf(BOLD "Login attempt %d/3\n" RESET, attempt);
+        printf("Username: "); fflush(stdout); scanf("%31s", username);
+        printf("Password: "); fflush(stdout); scanf("%63s", password);
+        send_line(srv_fd, "AUTH %s %s", username, password);
+        recv_line(srv_fd, buf, sizeof(buf));
+
+        if (strncmp(buf, "AUTH_OK DOCTOR", 14) == 0) 
+        {
+            sscanf(buf, "AUTH_OK DOCTOR %d", &doctor_id);
+            printf(BRIGHT_GREEN "✓ Authenticated as Doctor (id=%d)\n\n" RESET, doctor_id);
+            authed = 1;
+            break;
+        }
+
+        printf(RED "✗ Auth failed: %s" RESET, buf);
+        if (attempt < 3)
+            printf(YELLOW "  (%d attempt(s) remaining)\n" RESET, 3 - attempt);
+        else
+            printf("\n");
+        close(srv_fd);
+        srv_fd = socket(AF_INET, SOCK_STREAM, 0);
     }
-    sscanf(buf, "AUTH_OK DOCTOR %d", &doctor_id);
-    printf(BRIGHT_GREEN "✓ Authenticated as Doctor (id=%d)\n\n" RESET, doctor_id);
+
+    if (!authed) 
+    {
+        printf(RED "Too many failed attempts. Exiting.\n" RESET);
+        close(srv_fd); return 1;
+    }
 
     recv_line(srv_fd, buf, sizeof(buf)); /* READY line */
 
@@ -175,7 +208,8 @@ int main(void) {
     printf(DIM "\n  Alerts from the server will appear here automatically\n"
                "  as they arrive — no need to wait or poll.\n" RESET);
 
-    while (running) {
+    while (running) 
+    {
         printf(BOLD BRIGHT_CYAN "\n╔═ DOCTOR MENU ════════════════════════╗\n" RESET);
         printf(BOLD BRIGHT_CYAN "║" RESET " [1] My Patients                      "
                BOLD BRIGHT_CYAN "║\n" RESET);
@@ -184,18 +218,32 @@ int main(void) {
         printf(BOLD BRIGHT_CYAN "║" RESET " [3] Quit                             "
                BOLD BRIGHT_CYAN "║\n" RESET);
         printf(BOLD BRIGHT_CYAN "╚══════════════════════════════════════╝\n" RESET);
-        printf("Choice: "); fflush(stdout);
-
+        printf("Choice: ");
         int ch = 0;
-        if (scanf("%d", &ch) != 1) { running = 0; break; }
+        int res = scanf("%d",&ch);
+        if (res == EOF) break;
+        if(res != 1)
+        { 
+            int c; while ((c = getchar()) != '\n' && c != EOF);
+            printf("Invalid input.\n");
+            continue; 
+        }
 
-        switch(ch) {
+        switch(ch) 
+        {
             case 1:
                 do_my_patients();
                 break;
-            case 2: {
+            case 2: 
+            {
                 int pid;
-                printf("Patient ID: "); scanf("%d", &pid);
+                printf("Patient ID: "); fflush(stdout);
+                if (scanf("%d", &pid) != 1) 
+                {
+                    int c; while ((c = getchar()) != '\n' && c != EOF);
+                    printf("Invalid input.\n");
+                    break;
+                }
                 do_view_patient(pid);
                 break;
             }

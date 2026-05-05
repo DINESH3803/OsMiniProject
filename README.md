@@ -43,7 +43,8 @@ OSminiProject/
 │   ├── anomaly.c     — threshold + moving-average anomaly detection
 │   └── ipc_alert.c   — named pipe + SIGUSR1 + mqueue alert delivery
 ├── client/
-│   ├── nurse_client.c   — streams vitals (auto or manual)
+│   ├── icu_client.c     — unified entry point menu
+│   ├── nurse_client.c   — streams vitals (auto)
 │   ├── doctor_client.c  — receives alerts via pipe + SIGUSR1
 │   ├── admin_client.c   — full CRUD menu
 │   └── guest_client.c   — read-only anonymised stats
@@ -74,7 +75,7 @@ make clean
 
 ## Running the System
 
-Open **5 terminals** from the project root:
+Open **multiple terminals** from the project root:
 
 ### Terminal 1 — Server
 ```bash
@@ -82,34 +83,18 @@ Open **5 terminals** from the project root:
 ```
 Creates default users and patients on first run, then listens on port 8888.
 
-### Terminal 2 — Nurse (auto simulation)
+### Other Terminals — Client
 ```bash
-./bin/nurse_client --auto
-# Username: nurse1   Password: nurse123
+./bin/icu_client
 ```
-Streams vitals every 3 seconds with a 15% chance of anomalous readings.
+Presents a unified menu to select your role:
 
+1. **Admin**: Full menu to add/delete users, add/discharge patients, and assign nurses. Displays active doctors and nurses before assignment. Cannot delete other admins.
+2. **Doctor**: Registers its PID for SIGUSR1. Background thread reads named pipe. Alerts appear in real-time.
+3. **Nurse**: Select an assigned patient to stream vitals every 3 seconds with a 15% chance of anomalous readings. Gracefully pauses if patient is discharged.
+4. **Guest**: Shows anonymised ICU statistics only.
 
-### Terminal 3 — Doctor
-```bash
-./bin/doctor_client
-# Username: drsmith   Password: doc123
-```
-Registers its PID for SIGUSR1. Background thread reads named pipe. Alerts appear in real-time.
-
-### Terminal 4 — Admin
-```bash
-./bin/admin_client
-# Username: admin   Password: admin123
-```
-Full menu: add/delete users, add/discharge patients, assign nurses.
-
-### Terminal 5 — Guest
-```bash
-./bin/guest_client
-# No login required — press Enter or use "guest/guest"
-```
-Shows anonymised ICU statistics only.
+*(Note: Failed login attempts will prompt to retry up to 3 times before exiting.)*
 
 ---
 
@@ -175,7 +160,7 @@ pipe_reader thread      on_sigusr1 handler
 (doctor_client)         sets alert_flag
     │
     ▼
-print_alert() — coloured popup in terminal
+print_alert() — popup in terminal
 
 Also enqueued in POSIX mqueue /icu_mqueue for audit
 ```

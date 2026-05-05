@@ -112,10 +112,42 @@ int add_user(const char* name, const char* pass, Role role) {
 int delete_user(int uid) {
     pthread_mutex_lock(&g_state.user_mutex);
     User* u = find_user_by_id(uid);
-    if (!u) { pthread_mutex_unlock(&g_state.user_mutex); return -1; }
+    if (!u || !u->active) { pthread_mutex_unlock(&g_state.user_mutex); return -1; }
     u->active = 0;
     save_users();
     pthread_mutex_unlock(&g_state.user_mutex);
-    server_log("Deleted user id=%d", uid);
+
+    /* Clean up assigned patients */
+    pthread_mutex_lock(&g_state.patient_mutex);
+    for (int i = 0; i < g_state.patient_count; i++) {
+        Patient* p = &g_state.patients[i];
+        if (!p->active) continue;
+        int modified = 0;
+        
+        /* If user was the assigned doctor */
+        if (p->assigned_doctor_id == uid) {
+            p->assigned_doctor_id = 0; /* unassigned */
+            modified = 1;
+        }
+        
+        /* If user was an assigned nurse */
+        for (int j = 0; j < p->nurse_count; j++) {
+            if (p->assigned_nurses[j] == uid) {
+                for (int k = j; k < p->nurse_count - 1; k++) {
+                    p->assigned_nurses[k] = p->assigned_nurses[k+1];
+                }
+                p->nurse_count--;
+                modified = 1;
+                j--; /* re-check new element at j */
+            }
+        }
+        
+        if (modified) {
+            save_patient(p);
+        }
+    }
+    pthread_mutex_unlock(&g_state.patient_mutex);
+
+    server_log("Deleted user id=%d and removed from patient assignments", uid);
     return 0;
 }

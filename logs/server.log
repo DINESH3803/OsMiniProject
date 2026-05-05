@@ -1,0 +1,152 @@
+[2026-05-02 20:08:40] === Server starting ===
+[2026-05-02 20:08:40] Loaded 8 users from data/users.dat
+[2026-05-02 20:08:40] Loaded 9 patients from disk
+[2026-05-02 20:08:40] POSIX message queue opened: /icu_mqueue
+[2026-05-02 20:08:40] Named pipe ready: /tmp/icu_alert_2
+[2026-05-02 20:08:40] Named pipe ready: /tmp/icu_alert_3
+[2026-05-02 20:09:34] === Server starting ===
+[2026-05-02 20:09:34] Loaded 8 users from data/users.dat
+[2026-05-02 20:09:34] Loaded 9 patients from disk
+[2026-05-02 20:09:34] POSIX message queue opened: /icu_mqueue
+[2026-05-02 20:09:34] Named pipe ready: /tmp/icu_alert_2
+[2026-05-02 20:09:34] Named pipe ready: /tmp/icu_alert_3
+[2026-05-02 20:09:34] Listening on port 8888
+[2026-05-02 20:09:49] Connection from 127.0.0.1:57606
+[2026-05-02 20:09:53] Login: admin [ADMIN]
+[2026-05-02 20:10:19] === Server starting ===
+[2026-05-02 20:10:19] Loaded 8 users from data/users.dat
+[2026-05-02 20:10:19] Loaded 9 patients from disk
+[2026-05-02 20:10:19] POSIX message queue opened: /icu_mqueue
+[2026-05-02 20:10:19] Named pipe ready: /tmp/icu_alert_2
+[2026-05-02 20:10:19] Named pipe ready: /tmp/icu_alert_3
+[2026-05-02 20:10:26] Connection from 127.0.0.1:46948
+[2026-05-02 20:10:31] Login: nurse1 [NURSE]
+[2026-05-02 20:11:06] ALERT [CRITICAL] Patient#108 -> Doctor#2 : SpO2=89.7(CRITICAL)  
+[2026-05-02 20:11:06] Named pipe /tmp/icu_alert_2 not open (doctor offline?)
+[2026-05-02 20:11:06] Alert enqueued in mqueue
+[2026-05-02 20:11:06] [ANOMALY] Patient#108 CRITICAL: SpO2=89.7(CRITICAL)  
+[2026-05-02 20:23:55] === Server starting ===
+[2026-05-02 20:23:55] Loaded 8 users from data/users.dat
+[2026-05-02 20:23:55] Loaded 9 patients from disk
+[2026-05-02 20:23:55] POSIX message queue opened: /icu_mqueue
+[2026-05-02 20:23:55] Named pipe ready: /tmp/icu_alert_2
+[2026-05-02 20:23:55] Named pipe ready: /tmp/icu_alert_3
+[2026-05-02 20:24:14] === Server starting ===
+[2026-05-02 20:24:14] Loaded 8 users from data/users.dat
+[2026-05-02 20:24:14] Loaded 9 patients from disk
+[2026-05-02 20:24:14] POSIX message queue opened: /icu_mqueue
+[2026-05-02 20:24:14] Named pipe ready: /tmp/icu_alert_2
+[2026-05-02 20:24:14] Named pipe ready: /tmp/icu_alert_3
+[2026-05-02 20:24:14] Listening on port 8888
+[2026-05-02 22:52:02] === Server starting ===
+[2026-05-02 22:52:02] Loaded 8 users from data/users.dat
+[2026-05-02 22:52:02] Loaded 9 patients from disk
+[2026-05-02 22:52:02] POSIX message queue opened: /icu_mqueue
+[2026-05-02 22:52:02] Named pipe ready: /tmp/icu_alert_2
+[2026-05-02 22:52:02] Named pipe ready: /tmp/icu_alert_3
+[2026-05-02 22:52:02] Listening on port 8888
+[2026-05-02 22:52:40] Connection from 127.0.0.1:48088
+[2026-05-02 22:52:45] Login: nurse1 [NURSE]
+[2026-05-02 22:53:34] === Server shutting down ===
+[2026-05-03 00:30:19] === Server starting ===
+[2026-05-03 00:30:19] Loaded 8 users from data/users.dat
+[2026-05-03 00:30:19] Loaded 9 patients from disk
+[2026-05-03 00:30:19] POSIX message queue opened: /icu_mqueue
+[2026-05-03 00:30:19] Named pipe ready: /tmp/icu_alert_2
+[2026-05-03 00:30:19] Named pipe ready: /tmp/icu_alert_3
+[2026-05-03 00:30:19] Listening on port 8888
+[2026-05-03 00:30:31] Connection from 127.0.0.1:46422
+[2026-05-03 00:30:36] Login: nurse1 [NURSE]
+[2026-05-03 00:30:41] Connection from 127.0.0.1:36980
+[2026-05-03 00:31:11] ALERT [CRITICAL] Patient#108 -> Doctor#2 : Diastolic BP=106.4(CRITICAL)  HR σ-outlier(95.6 vs avg 75.8) 
+[2026-05-03 00:31:11] Named pipe /tmp/icu_alert_2 not open (doctor offline?)
+[2026-05-03 00:31:11] Alert enqueued in mqueue
+[2026-05-03 00:31:11] [ANOMALY] Patient#108 CRITICAL: Diastolic BP=106.4(CRITICAL)  HR σ-outlier(95.6 vs avg 75.8) 
+[2026-05-03 00:31:20] Login: drsmith [DOCTOR]
+[2026-05-03 00:31:20] Doctor drsmith registered pid=17920
+[2026-05-03 00:32:17] ALERT [WARNING] Patient#108 -> Doctor#2 : Diastolic BP=95.4(WARNING)  
+[2026-05-03 00:32:17] Alert written to named pipe /tmp/icu_alert_2
+[2026-05-03 00:32:17] SIGUSR1 sent to doctor pid=17920
+[2026-05-03 00:32:17] Alert enqueued in mqueue
+[2026-05-03 00:32:17] [ANOMALY] Patient#108 WARNING: Diastolic BP=95.4(WARNING)  
+[2026-05-03 00:32:30] Connection from 127.0.0.1:45492
+[2026-05-03 00:32:35] Login: nurse1 [NURSE]
+[2026-05-03 00:32:47] ALERT [WARNING] Patient#108 -> Doctor#2 : SpO2=91.3(WARNING)  SpO2 σ-outlier(91.3 vs avg 97.6) 
+[2026-05-03 00:32:47] Alert written to named pipe /tmp/icu_alert_2
+[2026-05-03 00:32:47] SIGUSR1 sent to doctor pid=17920
+[2026-05-03 00:32:47] Alert enqueued in mqueue
+[2026-05-03 00:32:47] [ANOMALY] Patient#108 WARNING: SpO2=91.3(WARNING)  SpO2 σ-outlier(91.3 vs avg 97.6) 
+[2026-05-03 00:32:49] ALERT [CRITICAL] Patient#107 -> Doctor#2 : SpO2=89.8(CRITICAL)  SpO2 σ-outlier(89.8 vs avg 97.3) 
+[2026-05-03 00:32:49] Alert written to named pipe /tmp/icu_alert_2
+[2026-05-03 00:32:49] SIGUSR1 sent to doctor pid=17920
+[2026-05-03 00:32:49] Alert enqueued in mqueue
+[2026-05-03 00:32:49] [ANOMALY] Patient#107 CRITICAL: SpO2=89.8(CRITICAL)  SpO2 σ-outlier(89.8 vs avg 97.3) 
+[2026-05-03 00:32:53] ALERT [CRITICAL] Patient#108 -> Doctor#2 : SpO2=88.5(CRITICAL)  SpO2 σ-outlier(88.5 vs avg 97.1) 
+[2026-05-03 00:32:53] Alert written to named pipe /tmp/icu_alert_2
+[2026-05-03 00:32:53] SIGUSR1 sent to doctor pid=17920
+[2026-05-03 00:32:53] Alert enqueued in mqueue
+[2026-05-03 00:32:53] [ANOMALY] Patient#108 CRITICAL: SpO2=88.5(CRITICAL)  SpO2 σ-outlier(88.5 vs avg 97.1) 
+[2026-05-03 00:33:20] === Server shutting down ===
+[2026-05-03 01:43:03] === Server starting ===
+[2026-05-03 01:43:03] Loaded 8 users from data/users.dat
+[2026-05-03 01:43:03] Loaded 9 patients from disk
+[2026-05-03 01:43:03] POSIX message queue opened: /icu_mqueue
+[2026-05-03 01:43:03] Named pipe ready: /tmp/icu_alert_2
+[2026-05-03 01:43:03] Named pipe ready: /tmp/icu_alert_3
+[2026-05-03 01:43:03] Listening on port 8888
+[2026-05-03 01:43:18] Connection from 127.0.0.1:57716
+[2026-05-03 01:43:23] Login: admin [ADMIN]
+[2026-05-03 01:43:58] Added user 'bseba' (id=9, role=GUEST)
+[2026-05-03 01:44:06] Deleted user id=9 and removed from patient assignments
+[2026-05-03 01:45:01] Connection from 127.0.0.1:49022
+[2026-05-03 01:45:06] Login: nurse1 [NURSE]
+[2026-05-03 01:45:23] ALERT [WARNING] Patient#108 -> Doctor#2 : Systolic BP=80.1(WARNING)  
+[2026-05-03 01:45:23] Named pipe /tmp/icu_alert_2 not open (doctor offline?)
+[2026-05-03 01:45:23] Alert enqueued in mqueue
+[2026-05-03 01:45:23] [ANOMALY] Patient#108 WARNING: Systolic BP=80.1(WARNING)  
+[2026-05-03 01:47:00] Connection from 127.0.0.1:54618
+[2026-05-03 01:47:17] Login: drsmith [DOCTOR]
+[2026-05-03 01:47:17] Doctor drsmith registered pid=18902
+[2026-05-03 01:53:03] ALERT [CRITICAL] Patient#108 -> Doctor#2 : Temperature=33.2(CRITICAL)  Temp σ-outlier(33.2 vs avg 36.5) 
+[2026-05-03 01:53:03] Alert written to named pipe /tmp/icu_alert_2
+[2026-05-03 01:53:03] SIGUSR1 sent to doctor pid=18902
+[2026-05-03 01:53:03] Alert enqueued in mqueue
+[2026-05-03 01:53:03] [ANOMALY] Patient#108 CRITICAL: Temperature=33.2(CRITICAL)  Temp σ-outlier(33.2 vs avg 36.5) 
+[2026-05-03 01:54:03] Connection from 127.0.0.1:34174
+[2026-05-03 14:23:17] === Server starting ===
+[2026-05-03 14:23:17] Loaded 9 users from data/users.dat
+[2026-05-03 14:23:17] Loaded 9 patients from disk
+[2026-05-03 14:23:17] POSIX message queue opened: /icu_mqueue
+[2026-05-03 14:23:17] Named pipe ready: /tmp/icu_alert_2
+[2026-05-03 14:23:17] Named pipe ready: /tmp/icu_alert_3
+[2026-05-03 14:23:17] Listening on port 8888
+[2026-05-03 14:23:19] === Server shutting down ===
+[2026-05-03 14:23:21] === Server starting ===
+[2026-05-03 14:23:21] Loaded 9 users from data/users.dat
+[2026-05-03 14:23:21] Loaded 9 patients from disk
+[2026-05-03 14:23:21] POSIX message queue opened: /icu_mqueue
+[2026-05-03 14:23:21] Named pipe ready: /tmp/icu_alert_2
+[2026-05-03 14:23:21] Named pipe ready: /tmp/icu_alert_3
+[2026-05-03 14:23:21] Listening on port 8888
+[2026-05-03 14:23:22] === Server shutting down ===
+[2026-05-03 14:39:59] === Server starting ===
+[2026-05-03 14:39:59] Loaded 9 users from data/users.dat
+[2026-05-03 14:39:59] Loaded 9 patients from disk
+[2026-05-03 14:39:59] POSIX message queue opened: /icu_mqueue
+[2026-05-03 14:39:59] Named pipe ready: /tmp/icu_alert_2
+[2026-05-03 14:39:59] Named pipe ready: /tmp/icu_alert_3
+[2026-05-03 14:39:59] Listening on port 8888
+[2026-05-03 14:40:14] Connection from 127.0.0.1:58544
+[2026-05-03 14:40:25] Login: nurse1 [NURSE]
+[2026-05-03 14:40:59] Connection from 127.0.0.1:44370
+[2026-05-03 14:41:04] Login: drsmith [DOCTOR]
+[2026-05-03 14:41:04] Doctor drsmith registered pid=37943
+[2026-05-03 14:41:39] Connection from 127.0.0.1:46896
+[2026-05-03 14:41:43] ALERT [WARNING] Patient#108 -> Doctor#2 : Resp Rate=8.5(WARNING)  RR σ-outlier(8.5 vs avg 15.9) 
+[2026-05-03 14:41:43] Alert written to named pipe /tmp/icu_alert_2
+[2026-05-03 14:41:43] SIGUSR1 sent to doctor pid=37943
+[2026-05-03 14:41:43] Alert enqueued in mqueue
+[2026-05-03 14:41:43] [ANOMALY] Patient#108 WARNING: Resp Rate=8.5(WARNING)  RR σ-outlier(8.5 vs avg 15.9) 
+[2026-05-03 14:42:23] Login: admin [ADMIN]
+[2026-05-03 14:42:56] Connection from 127.0.0.1:37272
+[2026-05-03 15:24:39] === Server shutting down ===
